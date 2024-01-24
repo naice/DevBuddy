@@ -1,0 +1,205 @@
+﻿
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using DevBuddy.Controls
+@using DevBuddy.Controls.Overlay
+@using DevBuddy.Model
+@using DevBuddy.Services
+@using System.Text.RegularExpressions
+
+@page "/"
+@attribute [NavigationPage("WorkLog", image: "image/item/32/spoiled-meat.png", sort: 0)]
+
+@inject HttpClient Http
+@inject IClipboardService Clipboard
+@inject ILogger<Index> Log
+@inject SimpleStorage<List<WorkWeek>> WorkWeeksStorage
+@inject SimpleStorage<List<WorkLog>> WorkLogStorage
+@inject IOverlayService OverlayService
+
+<RadzenTextArea class="w-100" Value="@test" Rows="10"
+    Placeholder="Mo AFO-123 Arbeit arbeit 2h 30m" 
+    @oninput="(x) => ParseWorkLogInput(x?.Value?.ToString())"/>
+
+@if (_workLogs.Any() && _currentWorkWeek.Days.Any())
+{
+<table>
+    <tr>
+        <th></th>
+        @foreach(var day in _currentWorkWeek.Days)
+        {
+            <th>@(day.Day.ToString("ddd.")) <span style="font-size: smaller;">@(day.Day.ToString("dd.MM"))</span></th>
+        }
+    </tr>
+    @foreach(var workTimeGroup in _workLogs.SelectMany(x => x.WorkTimes).GroupBy(x => x.Description))
+    {
+        <tr>
+            <td> @workTimeGroup.Key </td>
+            @foreach(var workDay in _currentWorkWeek.Days)
+            {
+                var workTimeSec = workTimeGroup.Where(x => x.Day == workDay.Day).Sum(x => x.TimeSpan?.TotalSeconds ?? 0);
+                var workTime = TimeSpan.FromSeconds(workTimeSec);
+
+                <td>
+                    <span>
+                        @if (workTime > TimeSpan.Zero)
+                        {
+                            @(workTime.Hours.ToString("00")+"h " + workTime.Minutes.ToString("00") + "m")
+                        }
+                    </span>
+                </td>
+            }
+        </tr>
+    }
+    <tr>
+        <td> <strong> Summe </strong> </td>
+        @foreach(var workDay in _currentWorkWeek.Days)
+        {
+            var workTimeTotalSec = _workLogs.SelectMany(x => x.WorkTimes).Where(x => x.Day == workDay.Day).Sum(x => x.TimeSpan?.TotalSeconds ?? 0);
+            var workTimeTotal = TimeSpan.FromSeconds(workTimeTotalSec);
+            var workTimeColor = "color: " + (
+                workDay.TargetWorkTime == workTimeTotal ? "blue" : 
+                workDay.TargetWorkTime < workTimeTotal ? "green" : "red");
+            <td>
+                <strong style="@workTimeColor">
+                    @if (workTimeTotal > TimeSpan.Zero)
+                    @(workTimeTotal)
+                </strong>
+            </td>
+        }
+    </tr>
+</table>
+}
+
+@code
+{
+    private string test = @"mo afo-123123 2h, afo-321 3h 15m, 
+di afo-321 4h 45m
+mi afo-321 1h
+donnerstag afo-333 8h, afo-3211 1h
+fr afo-999 9h 45m";
+
+    private List<WorkLog> _workLogs = new List<WorkLog>();
+    private WorkWeek _currentWorkWeek = new WorkWeek(Array.Empty<WorkDay>());
+
+    BehaviorSubject<List<WorkLog>> _workLogSubject = new BehaviorSubject<List<WorkLog>>(new List<WorkLog>());
+    IDisposable? _subscription = null;
+    protected override void OnInitialized()
+    {
+	    _currentWorkWeek = FromWeek(GetDayOfWeek(DateTime.Now.Date, DayOfWeek.Monday), TimeSpan.FromHours(8));
+        Log.LogWarning("Hallo");
+        _subscription = _workLogSubject.Subscribe(x => { _workLogs = x; Log.LogInformation("Parsed Work Log " + System.Text.Json.JsonSerializer.Serialize(x, new System.Text.Json.JsonSerializerOptions() { WriteIndented = true })); });
+    }
+
+    private void ParseWorkLogInput(string? value)
+    {
+        if (value == null)
+        {
+            _workLogSubject.OnNext(new List<WorkLog>());
+            return;
+        }
+        var lines = value.Split(Environment.NewLine);
+        var workLogs = lines.Select(x => ParseWorkLog(_currentWorkWeek, x)).Where(x => x != null).ToList();
+        _workLogSubject.OnNext(workLogs!);
+    }
+    private static DateTime GetDayOfWeek(DateTime dateTime, DayOfWeek dayOfWeek)
+    {
+        var monday = dateTime.Date.AddDays((7 + (dateTime.DayOfWeek - DayOfWeek.Monday) % 7) * -1);
+        var diff = dayOfWeek - DayOfWeek.Monday;
+        if (diff == -1)
+        {
+            diff = 6;
+        }
+        return monday.AddDays(diff);
+    }
+    private static WorkWeek FromWeek(DateTime beginDay, TimeSpan targetWorkTime, DayOfWeek weekEnd = DayOfWeek.Friday)
+    {
+        var list = new List<WorkDay>();
+        var day = beginDay.Date;
+        while (day.DayOfWeek < weekEnd+1)
+        {
+            list.Add(new (day, targetWorkTime));
+            day = day.AddDays(1);
+        }
+
+        return new(list);
+    }
+    private static WorkLog? ParseWorkLog(WorkWeek week, string worklog)
+    {
+        var tokens = worklog.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+        var first = tokens.FirstOrDefault();
+        if (first == null) return null;
+        var dayOfWeek = ParseDayOfWeek(first);
+        if (dayOfWeek == null) return null;
+        var weekDay = week.Days.FirstOrDefault(x => x.Day.DayOfWeek == dayOfWeek);
+        if (weekDay == null) return null;
+
+        tokens.RemoveAt(0);
+        tokens = string.Join(' ', tokens).Split(',', StringSplitOptions.RemoveEmptyEntries).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+
+        return new WorkLog(weekDay.Day, tokens.Select(x => ParseWorkTime(x, weekDay.Day)).ToArray());
+    }
+    private static WorkTime ParseWorkTime(string input, DateTime day)
+    {
+        var tokens = input.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+        var workTime = TimeSpan.Zero;
+        var removeTokens = new List<string>();
+        tokens.ForEach(token =>
+        {
+            var parsedWorkTime = ParseTime(token);
+            if (parsedWorkTime != TimeSpan.Zero) removeTokens.Add(token);
+            workTime = workTime.Add(parsedWorkTime);
+        });
+        tokens.RemoveAll(x => removeTokens.Contains(x));
+
+        return new WorkTime(day, workTime, null, string.Join(' ', tokens));
+    }
+    private static DayOfWeek? ParseDayOfWeek(string input)
+    {
+        var weekDays = new Dictionary<string, DayOfWeek>()
+        {
+            {@"^\s*?(Mo|Montag|Mon)", DayOfWeek.Monday },
+            {@"^\s*?(Di|Dienstag|Die)", DayOfWeek.Tuesday },
+            {@"^\s*?(Mi|Mittwoch|Mit)", DayOfWeek.Wednesday },
+            {@"^\s*?(Do|Donnerstag|Don)", DayOfWeek.Thursday },
+            {@"^\s*?(Fr|Freitag|Fre)", DayOfWeek.Friday },
+            {@"^\s*?(Sa|Samstag|Sam)", DayOfWeek.Saturday },
+            {@"^\s*?(So|Sonntag|Son)", DayOfWeek.Sunday },
+        };
+
+        DayOfWeek? dayOfWeek = null;
+        foreach (var weekDay in weekDays)
+        {
+            if (Regex.IsMatch(input, weekDay.Key, RegexOptions.IgnoreCase))
+            {
+                dayOfWeek = weekDay.Value; break;
+            }
+        }
+        return dayOfWeek;
+    }
+    private static TimeSpan ParseTime(string input)
+    {
+        var units = new Dictionary<string, int>()
+        {
+            {@"(\d+)(m|min|minuten|minute)", 1 },
+            {@"(\d+)(h|hour|std|stunden|stunde)", 60 },
+        };
+
+        var timespan = new TimeSpan();
+
+        foreach (var x in units)
+        {
+            var matches = Regex.Matches(input, x.Key);
+            foreach (Match match in matches)
+            {
+                try
+                {
+                    var amount = System.Convert.ToDouble(match.Groups[1].Value);
+                    timespan = timespan.Add(TimeSpan.FromMinutes(x.Value * amount));
+                }
+                catch {}
+            }
+        }
+
+        return timespan;
+    }
+}
