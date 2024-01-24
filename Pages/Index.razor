@@ -9,14 +9,13 @@
 @page "/"
 @attribute [NavigationPage("WorkLog", image: "image/item/32/spoiled-meat.png", sort: 0)]
 
-@inject HttpClient Http
 @inject IClipboardService Clipboard
 @inject ILogger<Index> Log
 @inject SimpleStorage<List<WorkWeek>> WorkWeeksStorage
 @inject SimpleStorage<List<WorkLog>> WorkLogStorage
 @inject IOverlayService OverlayService
 
-<RadzenTextArea class="w-100" Value="@test" Rows="10"
+<RadzenTextArea class="w-100" Rows="5" style="font-family: 'Lucida Console', 'Courier New', Courier, monospace !important; font-size: 10px !important;" spellcheck="false"
     Placeholder="Mo AFO-123 Arbeit arbeit 2h 30m" 
     @oninput="(x) => ParseWorkLogInput(x?.Value?.ToString())"/>
 
@@ -33,19 +32,25 @@
     @foreach(var workTimeGroup in _workLogs.SelectMany(x => x.WorkTimes).GroupBy(x => x.Description))
     {
         <tr>
-            <td> @workTimeGroup.Key </td>
+            <td> 
+                <span style="cursor: pointer;" @onclick="@(() => Clipboard.CopyToClipboard(workTimeGroup.Key ?? string.Empty))">
+                    @workTimeGroup.Key
+                </span>
+                
+            </td>
             @foreach(var workDay in _currentWorkWeek.Days)
             {
                 var workTimeSec = workTimeGroup.Where(x => x.Day == workDay.Day).Sum(x => x.TimeSpan?.TotalSeconds ?? 0);
                 var workTime = TimeSpan.FromSeconds(workTimeSec);
 
                 <td>
-                    <span>
-                        @if (workTime > TimeSpan.Zero)
-                        {
-                            @(workTime.Hours.ToString("00")+"h " + workTime.Minutes.ToString("00") + "m")
-                        }
-                    </span>
+                    @if (workTime > TimeSpan.Zero)
+                    {
+                        var workTimeText = workTime.Hours.ToString("00")+"h " + workTime.Minutes.ToString("00") + "m";
+                        <span style="cursor: pointer;" @onclick="@(() => Clipboard.CopyToClipboard(workTimeText))">
+                            @(workTimeText)
+                        </span>
+                    }
                 </td>
             }
         </tr>
@@ -56,14 +61,17 @@
         {
             var workTimeTotalSec = _workLogs.SelectMany(x => x.WorkTimes).Where(x => x.Day == workDay.Day).Sum(x => x.TimeSpan?.TotalSeconds ?? 0);
             var workTimeTotal = TimeSpan.FromSeconds(workTimeTotalSec);
-            var workTimeColor = "color: " + (
+            var workTimeColor = "cursor: pointer; color: " + (
                 workDay.TargetWorkTime == workTimeTotal ? "blue" : 
                 workDay.TargetWorkTime < workTimeTotal ? "green" : "red");
             <td>
-                <strong style="@workTimeColor">
-                    @if (workTimeTotal > TimeSpan.Zero)
-                    @(workTimeTotal)
-                </strong>
+                @if (workTimeTotal > TimeSpan.Zero)
+                {
+                    var workTimeText = workTimeTotal.Hours.ToString("00")+"h " + workTimeTotal.Minutes.ToString("00") + "m";
+                    <strong style="@workTimeColor" @onclick="@(() => Clipboard.CopyToClipboard(workTimeText))">
+                        @(workTimeText)
+                    </strong>
+                }
             </td>
         }
     </tr>
