@@ -74,7 +74,9 @@
     private void AddTargetWorkTime()
     {
         if (_configuration == null || _configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.Count == 7) return;
-        _configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.Add(new (DayOfWeek.Monday, TimeSpan.FromHours(8)));
+        var allDaysOfWeek = Enum.GetValues<DayOfWeek>();
+        var missingDayOfWeek = allDaysOfWeek.First(x => !_configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.Any(y => y.DayOfWeek == x));
+        _configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.Add(new (missingDayOfWeek, TimeSpan.FromHours(8)));
         Configuration.Subject.OnNext(_configuration);
     }
     private async Task ResetTargetWorkTime()
