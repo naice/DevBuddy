@@ -1,5 +1,3 @@
-using DevBuddy.Model;
-using DevBuddy.Navigation;
 using Blazored.LocalStorage;
 
 namespace DevBuddy.Services;
