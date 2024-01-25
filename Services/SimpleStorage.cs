@@ -21,14 +21,14 @@ public class SimpleStorage<TEntity>
     {        
         try
         {
-            var value = await _localStorage.GetItemAsync<TEntity>(_entityType.FullName);
-            Subject.OnNext(value ?? defaultEntity);
+            var value = await _localStorage.GetItemAsync<TEntity>(_entityType.FullName) ?? defaultEntity;
+            Subject.OnNext(value);
             return value;
         }
         catch (Exception)
         {
             Subject.OnNext(defaultEntity);
-            return null;
+            return defaultEntity;
         }
     }
 
@@ -53,18 +53,18 @@ public class SimpleStorage<TEntity, TKey>
         _keyType = typeof(TKey);
     }
 
-    public async ValueTask<TEntity?> GetAsync()
+    public async ValueTask<TEntity?> GetAsync(TEntity? defaultEntity = null)
     {        
         try
         {
-            var value = await _localStorage.GetItemAsync<TEntity>(_keyType.FullName);
+            var value = await _localStorage.GetItemAsync<TEntity>(_keyType.FullName) ?? defaultEntity;
             Subject.OnNext(value);
             return value;
         }
         catch (Exception)
         {
-            Subject.OnNext(null);
-            return null;
+            Subject.OnNext(defaultEntity);
+            return defaultEntity;
         }
     }
 
