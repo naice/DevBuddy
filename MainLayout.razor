@@ -1,6 +1,8 @@
 ﻿@using DevBuddy.Controls.Overlay
 @using DevBuddy.Navigation
 
+@inject IJSRuntime JSRuntime
+
 @inherits LayoutComponentBase
 
 <RadzenComponents/>
@@ -21,7 +23,7 @@
             @Body
         </RadzenBody>
         <RadzenFooter class="layout-footer">
-            <div style="display: flex; justify-content: end; align-items: center;">
+            <div style="display: flex; justify-content: end; align-items: center; cursor: pointer;" @onclick="@(async () => await JSRuntime.InvokeAsync<object>("open", "https://github.com/naice", "_blank"))">
                 <span>Made with</span> 
                 <RadzenIcon Icon="favorite" IconColor="red" /> 
                 <span>by Emmuss</span>

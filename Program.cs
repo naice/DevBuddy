@@ -28,6 +28,7 @@ services.AddRadzenComponents();
 
 // My
 services.AddScoped(typeof(SimpleStorage<>));
+services.AddScoped(typeof(SimpleStorage<,>));
 services.AddScoped<IOverlayService, OverlayService>();
 services.AddScoped<INavigationPanelService, NavigationPanelService>();
 

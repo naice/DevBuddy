@@ -29,11 +29,11 @@ public class WorkLogParser
 		WorkWeek = FromWeek(beginOfWeek, targetWorkTime, weekEnd);
 	}
 
-	public List<WorkLog> ParseWorkLogInput(string? value)
+	public List<WorkLog> ParseWorkLogInput(string? value, List<WorkLog>? defaultValue = null)
 	{
-		if (value == null)
+		if (string.IsNullOrWhiteSpace(value))
 		{
-			return new List<WorkLog>();
+			return defaultValue ?? new List<WorkLog>();
 		}
 		var lines = value.Split(Environment.NewLine);
 		var workLogs = lines.Select(x => ParseWorkLog(WorkWeek, x)).Where(x => x != null).ToList();

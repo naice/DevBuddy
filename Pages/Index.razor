@@ -8,15 +8,17 @@
 @page "/"
 @attribute [NavigationPage("WorkLog", image: "image/worklog.png", sort: 0)]
 
+@implements IDisposable
+
 @inject IClipboardService Clipboard
 @inject ILogger<Index> Log
 @inject SimpleStorage<List<WorkWeek>> WorkWeeksStorage
-@inject SimpleStorage<List<WorkLog>> WorkLogStorage
+@inject SimpleStorage<string, WorkLogTextStorage> WorkLogStorage
 @inject IOverlayService OverlayService
 
-<RadzenTextArea class="w-100" Rows="5" style="font-family: 'Lucida Console', 'Courier New', Courier, monospace !important; font-size: 10px !important;" spellcheck="false"
-    Placeholder="Mo AFO-123 Arbeit arbeit 2h 30m" 
-    @oninput="(x) => ParseWorkLogInput(x?.Value?.ToString())"/>
+<RadzenTextArea @ref="_textArea" class="w-100" Rows="5" style="font-family: 'Lucida Console', 'Courier New', Courier, monospace !important; font-size: 10px !important;" spellcheck="false"
+    Placeholder="@_sampleWorkLogString" 
+    @oninput="(x) => OnTextInput(x?.Value?.ToString())"/>
 
 @if (_workLogs.Any() && _workLogParser.WorkWeek.Days.Any())
 {
@@ -83,28 +85,66 @@
 
 @code
 {
-    private string test = @"mo afo-123123 2h, afo-321 3h 15m, 
-di afo-321 4h 45m
-mi afo-321 1h
-donnerstag afo-333 8h, afo-3211 1h
-fr afo-999 9h 45m";
+    private class WorkLogTextStorage {}
+    private const string _sampleWorkLogString = @"mo Ticket-123 2h, Ticket-321 3h 15m, 
+di Ticket-321 4h 45m
+mi Ticket-321 1h
+donnerstag Ticket-333 8h, Ticket-3211 1h
+fr Ticket-999 8h";
 
     private List<WorkLog> _workLogs = new List<WorkLog>();
+    private RadzenTextArea _textArea = default!;
 
-    BehaviorSubject<List<WorkLog>> _workLogSubject = new BehaviorSubject<List<WorkLog>>(new List<WorkLog>());
-    IDisposable? _subscription = null;
+    BehaviorSubject<string> _workLogText;
+    IObservable<List<WorkLog>> _workLogsObservable;
+    List<IDisposable> _subscriptions = new List<IDisposable>();
 
     DateTime _today = DateTime.Today;
     
     WorkLogParser _workLogParser = new WorkLogParser(DateTime.Now, DayOfWeek.Monday, DayOfWeek.Friday, TimeSpan.FromHours(8));
-    protected override void OnInitialized()
+
+    public Index()
     {
-        Log.LogWarning("Hallo");
-        _subscription = _workLogSubject.Subscribe(x => { _workLogs = x; Log.LogInformation("Parsed Work Log " + System.Text.Json.JsonSerializer.Serialize(x, new System.Text.Json.JsonSerializerOptions() { WriteIndented = true })); });
+        _workLogText = new BehaviorSubject<string>("");
+        _workLogsObservable = _workLogText.Select(x => {
+            var result = _workLogParser.ParseWorkLogInput(x);
+            if (result.Count == 0)
+                result = _workLogParser.ParseWorkLogInput(_sampleWorkLogString);
+            return result;
+        });
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        string? workLogString = await WorkLogStorage.GetAsync();
+        _textArea.Value = workLogString ?? string.Empty;
+        if (string.IsNullOrEmpty(workLogString))
+        {
+            workLogString = _sampleWorkLogString;
+        }
+
+        _subscriptions.Add(
+            _workLogText.Throttle(TimeSpan.FromSeconds(1)).Subscribe(async x => {
+                if (x != _sampleWorkLogString)
+                    await WorkLogStorage.SetAsync(x);
+            })
+        );
+        _workLogText.OnNext(workLogString);
+        _subscriptions.Add(_workLogsObservable.Subscribe(x => _workLogs = x));
+
+        await base.OnInitializedAsync();
     }
 
-    private void ParseWorkLogInput(string? value)
+    private void OnTextInput(string? text)
     {
-        _workLogSubject.OnNext(_workLogParser.ParseWorkLogInput(value));
+        if (string.IsNullOrEmpty(text))
+        {
+            text = _sampleWorkLogString;
+        }
+        _workLogText.OnNext(text);
+    }
+
+    public void Dispose()
+    {
+        _subscriptions.ForEach(x => x.Dispose());
     }
 }
