@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace DevBuddy.Services;
 
-public record WorkWeek(IEnumerable<WorkDay> Days, bool IsCommited = false);
+public record WorkWeek(IEnumerable<WorkDay> Days, int CalendarWeek, bool IsCommited = false);
 public record WorkDay(DateTime Day, TimeSpan TargetWorkTime);
 public record WorkLog(DateTime Day, WorkTime[] WorkTimes);
 public record WorkTime(DateTime Day, TimeSpan? TimeSpan, string? TicketId, string? Description);
@@ -26,7 +26,7 @@ public class WorkLogParser
 		var cal = CultureInfo.CurrentCulture.Calendar;
 		int calendarWeekInt = ISOWeek.GetWeekOfYear(now);
 		var beginOfWeek = ISOWeek.ToDateTime(now.Year, calendarWeekInt, DayOfWeek.Monday);
-		WorkWeek = FromWeek(beginOfWeek, targetWorkTime, weekEnd);
+		WorkWeek = FromWeek(beginOfWeek, targetWorkTime, calendarWeekInt, weekEnd);
 	}
 
 	public List<WorkLog> ParseWorkLogInput(string? value, List<WorkLog>? defaultValue = null)
@@ -40,7 +40,7 @@ public class WorkLogParser
 		return workLogs!;
 	}
 	
-	private static WorkWeek FromWeek(DateTime beginDay, TimeSpan targetWorkTime, DayOfWeek weekEnd = DayOfWeek.Friday)
+	private static WorkWeek FromWeek(DateTime beginDay, TimeSpan targetWorkTime, int calendarWeek, DayOfWeek weekEnd = DayOfWeek.Friday)
 	{
 		var list = new List<WorkDay>();
 		var day = beginDay.Date;
@@ -50,7 +50,7 @@ public class WorkLogParser
 			day = day.AddDays(1);
 		}
 
-		return new(list);
+		return new(list, calendarWeek);
 	}
 	private static WorkLog? ParseWorkLog(WorkWeek week, string worklog)
 	{

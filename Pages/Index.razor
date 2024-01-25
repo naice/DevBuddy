@@ -24,7 +24,7 @@
 {
 <table>
     <tr>
-        <th></th>
+        <th><RadzenText TextStyle="TextStyle.Overline">KW @(_workLogParser.WorkWeek.CalendarWeek.ToString("00"))</RadzenText></th>
         @foreach(var workDay in _workLogParser.WorkWeek.Days)
         {
             var isToday = workDay.Day == _today;
