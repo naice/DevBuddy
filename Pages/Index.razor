@@ -23,16 +23,19 @@
 <table>
     <tr>
         <th></th>
-        @foreach(var day in _workLogParser.WorkWeek.Days)
+        @foreach(var workDay in _workLogParser.WorkWeek.Days)
         {
-            <th>@(day.Day.ToString("ddd.")) <span style="font-size: smaller;">@(day.Day.ToString("dd.MM"))</span></th>
+            var isToday = workDay.Day == _today;
+            <th class="@(isToday ? "today" : string.Empty)">
+                <RadzenText TextStyle="TextStyle.Overline">@(workDay.Day.ToString("ddd.")) @(workDay.Day.ToString("dd.MM"))</RadzenText>
+            </th>
         }
     </tr>
     @foreach(var workTimeGroup in _workLogs.SelectMany(x => x.WorkTimes).GroupBy(x => x.Description))
     {
         <tr>
             <td> 
-                <span style="cursor: pointer;" @onclick="@(() => Clipboard.CopyToClipboard(workTimeGroup.Key ?? string.Empty))">
+                <span class="copy" @onclick="@(() => Clipboard.CopyToClipboard(workTimeGroup.Key ?? string.Empty))">
                     @workTimeGroup.Key
                 </span>
                 
@@ -41,12 +44,12 @@
             {
                 var workTimeSec = workTimeGroup.Where(x => x.Day == workDay.Day).Sum(x => x.TimeSpan?.TotalSeconds ?? 0);
                 var workTime = TimeSpan.FromSeconds(workTimeSec);
-
-                <td>
+                var isToday = workDay.Day == _today;
+                <td class="@(isToday ? "today" : string.Empty)">
                     @if (workTime > TimeSpan.Zero)
                     {
                         var workTimeText = workTime.Hours.ToString("00")+"h " + workTime.Minutes.ToString("00") + "m";
-                        <span style="cursor: pointer;" @onclick="@(() => Clipboard.CopyToClipboard(workTimeText))">
+                        <span class="copy" @onclick="@(() => Clipboard.CopyToClipboard(workTimeText))">
                             @(workTimeText)
                         </span>
                     }
@@ -60,14 +63,15 @@
         {
             var workTimeTotalSec = _workLogs.SelectMany(x => x.WorkTimes).Where(x => x.Day == workDay.Day).Sum(x => x.TimeSpan?.TotalSeconds ?? 0);
             var workTimeTotal = TimeSpan.FromSeconds(workTimeTotalSec);
-            var workTimeColor = "cursor: pointer; color: " + (
-                workDay.TargetWorkTime == workTimeTotal ? "blue" : 
-                workDay.TargetWorkTime < workTimeTotal ? "green" : "red");
-            <td>
+            var workTimeClass = "copy " + (
+                workDay.TargetWorkTime == workTimeTotal ? "onDue" : 
+                workDay.TargetWorkTime < workTimeTotal ? "overDue" : "underDue");
+            var isToday = workDay.Day == _today;
+            <td class="@(isToday ? "today" : string.Empty)">
                 @if (workTimeTotal > TimeSpan.Zero)
                 {
                     var workTimeText = workTimeTotal.Hours.ToString("00")+"h " + workTimeTotal.Minutes.ToString("00") + "m";
-                    <strong style="@workTimeColor" @onclick="@(() => Clipboard.CopyToClipboard(workTimeText))">
+                    <strong class="@workTimeClass" @onclick="@(() => Clipboard.CopyToClipboard(workTimeText))">
                         @(workTimeText)
                     </strong>
                 }
@@ -89,6 +93,8 @@ fr afo-999 9h 45m";
 
     BehaviorSubject<List<WorkLog>> _workLogSubject = new BehaviorSubject<List<WorkLog>>(new List<WorkLog>());
     IDisposable? _subscription = null;
+
+    DateTime _today = DateTime.Today;
     
     WorkLogParser _workLogParser = new WorkLogParser(DateTime.Now, DayOfWeek.Monday, DayOfWeek.Friday, TimeSpan.FromHours(8));
     protected override void OnInitialized()
