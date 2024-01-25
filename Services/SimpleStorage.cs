@@ -1,3 +1,4 @@
+using System.Reactive.Subjects;
 using Blazored.LocalStorage;
 
 namespace DevBuddy.Services;
@@ -8,20 +9,25 @@ public class SimpleStorage<TEntity>
     private readonly ILocalStorageService _localStorage;
     private readonly Type _entityType;
 
+    public Subject<TEntity?> Subject { get; } = new Subject<TEntity?>();
+
     public SimpleStorage(ILocalStorageService localStorage)
     {
         _localStorage = localStorage;
         _entityType = typeof(TEntity);
     }
 
-    public async ValueTask<TEntity?> GetAsync()
+    public async ValueTask<TEntity?> GetAsync(TEntity? defaultEntity = null)
     {        
         try
         {
-            return await _localStorage.GetItemAsync<TEntity>(_entityType.FullName);
+            var value = await _localStorage.GetItemAsync<TEntity>(_entityType.FullName);
+            Subject.OnNext(value ?? defaultEntity);
+            return value;
         }
         catch (Exception)
         {
+            Subject.OnNext(defaultEntity);
             return null;
         }
     }
@@ -29,6 +35,7 @@ public class SimpleStorage<TEntity>
     public async ValueTask SetAsync(TEntity? entity)
     {
         await _localStorage.SetItemAsync(_entityType.FullName, entity);
+        Subject.OnNext(entity);
     }
     
 }
@@ -37,6 +44,8 @@ public class SimpleStorage<TEntity, TKey>
 {
     private readonly ILocalStorageService _localStorage;
     private readonly Type _keyType;
+
+    public Subject<TEntity?> Subject { get; } = new Subject<TEntity?>();
 
     public SimpleStorage(ILocalStorageService localStorage)
     {
@@ -48,10 +57,13 @@ public class SimpleStorage<TEntity, TKey>
     {        
         try
         {
-            return await _localStorage.GetItemAsync<TEntity>(_keyType.FullName);
+            var value = await _localStorage.GetItemAsync<TEntity>(_keyType.FullName);
+            Subject.OnNext(value);
+            return value;
         }
         catch (Exception)
         {
+            Subject.OnNext(null);
             return null;
         }
     }
@@ -59,6 +71,6 @@ public class SimpleStorage<TEntity, TKey>
     public async ValueTask SetAsync(TEntity? entity)
     {
         await _localStorage.SetItemAsync(_keyType.FullName, entity);
+        Subject.OnNext(entity);
     }
-    
 }

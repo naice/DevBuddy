@@ -1,0 +1,110 @@
+﻿
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using DevBuddy.Controls
+@using DevBuddy.Controls.Overlay
+@using DevBuddy.Services
+@using System.Text.RegularExpressions
+@using DevBuddy.Model
+
+@page "/settings"
+@attribute [NavigationPage("Settings", icon: "settings", sort: 99999)]
+
+@implements IDisposable
+
+@inject IClipboardService Clipboard
+@inject ILogger<Index> Log
+@inject SimpleStorage<Configuration> Configuration
+@inject IOverlayService OverlayService
+@inject NotificationService NotificationService
+
+@if (_configuration != null)
+{
+    <div class="button-panel">
+        <RadzenButton Icon="add" ButtonStyle="ButtonStyle.Secondary" Click="@(AddTargetWorkTime)" Disabled=@(_configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.Count >= 7) />
+    </div>
+    @foreach(var context in _configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek)
+    {
+        <div class="config-row">
+            <RadzenDropDown TValue="object" 
+                @bind-Value:get="(object)context.DayOfWeek" 
+                @bind-Value:set="@((x) => context.DayOfWeek = ((ValueTuple<string,DayOfWeek>)x).Item2)" 
+                Data="@(Enum.GetValues<DayOfWeek>().Select(x => (x.GetDisplayDescription(), (DayOfWeek)x)))" 
+                TextProperty="Item1"
+                ValueProperty="Item2" 
+                Name="DayOfWeekDropDown">                
+            </RadzenDropDown>
+            <RadzenDatePicker TValue="DateTime" ShowTime="true" TimeOnly="true" DateFormat="HH:mm" Name="DatePickerTimeOnly" 
+                @bind-Value:get="@(DateTime.MinValue.Add(context.Time))" 
+                @bind-Value:set="@((x) => {context.Time = x.TimeOfDay; Console.WriteLine("X: " + x.TimeOfDay.ToString());})" />
+            <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(() => RemoveTargetWorkTime(context))" />
+        </div>
+    }
+    <div class="button-panel">
+        <RadzenButton Icon="undo" Text="Reset" ButtonStyle="ButtonStyle.Danger" Click="@(ResetTargetWorkTime)" />
+        <RadzenButton Icon="save" ButtonStyle="ButtonStyle.Success" Click="@(SaveTargetWorkTimeByDayOfWeek)" />
+    </div>
+}
+
+
+@code
+{
+    Configuration? _configuration;
+    List<IDisposable> _subscriptions = new List<IDisposable>();
+    List<IGrouping<DayOfWeek, TargetWorkTime>>? _errorDoubleDays;
+
+    private DateTime? x;
+    protected override async Task OnInitializedAsync()
+    {
+        _subscriptions.Add(
+            Configuration.Subject
+                .Select(
+                    config => { 
+                        if (config == null) return config;
+                        var l = config.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.OrderBy(x => (int)x.DayOfWeek).ToList(); 
+                        config.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.Clear();
+                        config.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.AddRange(l);
+                        return config;
+                    })
+                .Subscribe(config => _configuration = config)
+        );
+        await Configuration.GetAsync(Model.Configuration.DEFAULT_CONFIG.Clone());
+        await base.OnInitializedAsync();
+    }
+
+    private void AddTargetWorkTime()
+    {
+        if (_configuration == null || _configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.Count == 7) return;
+        _configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.Add(new (DayOfWeek.Monday, TimeSpan.FromHours(8)));
+        Configuration.Subject.OnNext(_configuration);
+    }
+    private async Task ResetTargetWorkTime()
+    {
+        if (_configuration == null) return;
+        await Configuration.SetAsync(Model.Configuration.DEFAULT_CONFIG.Clone());
+    }
+    private void RemoveTargetWorkTime(TargetWorkTime targetWorkTime)
+    {
+        if (_configuration == null) return;
+        _configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.Remove(targetWorkTime);
+        Configuration.Subject.OnNext(_configuration);
+    }
+
+    private async Task SaveTargetWorkTimeByDayOfWeek()
+    {
+        if (_configuration == null) return;
+        var errDoubleDays = _configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.GroupBy(x => x.DayOfWeek).Where(x => x.Count() > 1).ToList();
+        if (errDoubleDays.Count > 0)
+        {
+            NotificationService.Notify(severity: NotificationSeverity.Error, summary: "Can't save configuration", detail: "Same week days: " + string.Join(", ", errDoubleDays.Select(x => x.Key.ToString())) );
+            return;
+        }
+
+        await Configuration.SetAsync(_configuration);
+        NotificationService.Notify(severity: NotificationSeverity.Success, summary: "Configuration saved");
+    }
+
+    public void Dispose()
+    {
+        _subscriptions.ForEach(x => x.Dispose());
+    }
+}

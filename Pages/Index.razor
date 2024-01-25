@@ -6,13 +6,13 @@
 @using System.Text.RegularExpressions
 
 @page "/"
-@attribute [NavigationPage("WorkLog", image: "image/worklog.png", sort: 0)]
+@attribute [NavigationPage("WorkLog", icon: "event_note", sort: 0)]
 
 @implements IDisposable
 
 @inject IClipboardService Clipboard
 @inject ILogger<Index> Log
-@inject SimpleStorage<List<WorkWeek>> WorkWeeksStorage
+@inject SimpleStorage<Model.Configuration> Configuration
 @inject SimpleStorage<string, WorkLogTextStorage> WorkLogStorage
 @inject IOverlayService OverlayService
 
@@ -20,7 +20,7 @@
     Placeholder="@_sampleWorkLogString" 
     @oninput="(x) => OnTextInput(x?.Value?.ToString())"/>
 
-@if (_workLogs.Any() && _workLogParser.WorkWeek.Days.Any())
+@if (_workLogs.Any() && _workLogParser != null && _workLogParser.WorkWeek.Days.Any())
 {
 <table>
     <tr>
@@ -66,8 +66,8 @@
             var workTimeTotalSec = _workLogs.SelectMany(x => x.WorkTimes).Where(x => x.Day == workDay.Day).Sum(x => x.TimeSpan?.TotalSeconds ?? 0);
             var workTimeTotal = TimeSpan.FromSeconds(workTimeTotalSec);
             var workTimeClass = "copy " + (
-                workDay.TargetWorkTime == workTimeTotal ? "onDue" : 
-                workDay.TargetWorkTime < workTimeTotal ? "overDue" : "underDue");
+                workDay.TargetWorkTime.Time == workTimeTotal ? "onDue" : 
+                workDay.TargetWorkTime.Time < workTimeTotal ? "overDue" : "underDue");
             var isToday = workDay.Day == _today;
             <td class="@(isToday ? "today" : string.Empty)">
                 @if (workTimeTotal > TimeSpan.Zero)
@@ -87,7 +87,7 @@
 {
     private class WorkLogTextStorage {}
     private const string _sampleWorkLogString = @"mo Ticket-123 2h, Ticket-321 3h 15m, 
-di Ticket-321 4h 45m
+di Ticket-321 4h 45m, Ticket-333 2h 15m
 mi Ticket-321 1h
 donnerstag Ticket-333 8h, Ticket-3211 1h
 fr Ticket-999 8h";
@@ -101,12 +101,13 @@ fr Ticket-999 8h";
 
     DateTime _today = DateTime.Today;
     
-    WorkLogParser _workLogParser = new WorkLogParser(DateTime.Now, DayOfWeek.Monday, DayOfWeek.Friday, TimeSpan.FromHours(8));
+    WorkLogParser? _workLogParser;
 
     public Index()
     {
         _workLogText = new BehaviorSubject<string>("");
         _workLogsObservable = _workLogText.Select(x => {
+            var _ =_workLogParser ?? throw new Exception();
             var result = _workLogParser.ParseWorkLogInput(x);
             if (result.Count == 0)
                 result = _workLogParser.ParseWorkLogInput(_sampleWorkLogString);
@@ -115,6 +116,8 @@ fr Ticket-999 8h";
     }
     protected override async Task OnInitializedAsync()
     {
+        var config = await Configuration.GetAsync(Model.Configuration.DEFAULT_CONFIG.Clone());
+        _workLogParser = new WorkLogParser(DateTime.Now, config!.WorkLogConfiguration.TargetWorkTimeByDayOfWeek);
         string? workLogString = await WorkLogStorage.GetAsync();
         _textArea.Value = workLogString ?? string.Empty;
         if (string.IsNullOrEmpty(workLogString))

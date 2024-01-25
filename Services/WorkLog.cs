@@ -1,11 +1,17 @@
 
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 
 namespace DevBuddy.Services;
 
 public record WorkWeek(IEnumerable<WorkDay> Days, int CalendarWeek, bool IsCommited = false);
-public record WorkDay(DateTime Day, TimeSpan TargetWorkTime);
+public record TargetWorkTime(DayOfWeek DayOfWeek, TimeSpan Time)
+{
+    public DayOfWeek DayOfWeek { get; set; } = DayOfWeek;
+    public TimeSpan Time { get; set; } = Time;
+};
+public record WorkDay(DateTime Day, TargetWorkTime TargetWorkTime);
 public record WorkLog(DateTime Day, WorkTime[] WorkTimes);
 public record WorkTime(DateTime Day, TimeSpan? TimeSpan, string? TicketId, string? Description);
 
@@ -20,13 +26,12 @@ public class WorkLogParser
 		WorkWeek = workWeek;
 	}
 
-	public WorkLogParser(DateTime anyDayOfIDOWeek, DayOfWeek weekBegin, DayOfWeek weekEnd, TimeSpan targetWorkTime)
+	public WorkLogParser(DateTime anyDayOfIDOWeek, List<TargetWorkTime> targetWorkTime)
 	{
 		var now = anyDayOfIDOWeek;
-		var cal = CultureInfo.CurrentCulture.Calendar;
 		int calendarWeekInt = ISOWeek.GetWeekOfYear(now);
-		var beginOfWeek = ISOWeek.ToDateTime(now.Year, calendarWeekInt, DayOfWeek.Monday);
-		WorkWeek = FromWeek(beginOfWeek, targetWorkTime, calendarWeekInt, weekEnd);
+		var isoWeekBegin = ISOWeek.ToDateTime(now.Year, calendarWeekInt, DayOfWeek.Monday);
+		WorkWeek = FromWeek(isoWeekBegin, targetWorkTime, calendarWeekInt);
 	}
 
 	public List<WorkLog> ParseWorkLogInput(string? value, List<WorkLog>? defaultValue = null)
@@ -40,17 +45,14 @@ public class WorkLogParser
 		return workLogs!;
 	}
 	
-	private static WorkWeek FromWeek(DateTime beginDay, TimeSpan targetWorkTime, int calendarWeek, DayOfWeek weekEnd = DayOfWeek.Friday)
+	private static WorkWeek FromWeek(DateTime isoWeekBegin, List<TargetWorkTime> targetWorkTime, int calendarWeek)
 	{
-		var list = new List<WorkDay>();
-		var day = beginDay.Date;
-		while (day.DayOfWeek < weekEnd + 1)
-		{
-			list.Add(new(day, targetWorkTime));
-			day = day.AddDays(1);
-		}
-
-		return new(list, calendarWeek);
+		var list = Enumerable.Range(0, 7).Select(x => isoWeekBegin.AddDays(x)).Select(x => {
+			var tw = targetWorkTime.FirstOrDefault(y => y.DayOfWeek == x.DayOfWeek);
+			if (tw == null) return null;
+			return new WorkDay(x, tw);
+		}).Where(x => x != null).ToList();
+		return new(list!, calendarWeek);
 	}
 	private static WorkLog? ParseWorkLog(WorkWeek week, string worklog)
 	{
