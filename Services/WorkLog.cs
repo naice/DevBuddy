@@ -11,27 +11,29 @@ public record TargetWorkTime(DayOfWeek DayOfWeek, TimeSpan Time)
     public DayOfWeek DayOfWeek { get; set; } = DayOfWeek;
     public TimeSpan Time { get; set; } = Time;
 };
+public record TicketLink(string RegexGroupCapture, string UrlTemplate, string? Value = null)
+{
+    public string RegexGroupCapture { get; set; } = RegexGroupCapture;
+    public string UrlTemplate { get; set; } = UrlTemplate;
+    public string? Value { get; set; } = Value;
+}
 public record WorkDay(DateTime Day, TargetWorkTime TargetWorkTime);
 public record WorkLog(DateTime Day, WorkTime[] WorkTimes);
-public record WorkTime(DateTime Day, TimeSpan? TimeSpan, string? TicketId, string? Description);
+public record WorkTime(DateTime Day, TimeSpan? TimeSpan, List<TicketLink>? TicketLink, string? Description);
 
 
 public class WorkLogParser
 {
 	public WorkWeek WorkWeek { get; }
+    public List<TicketLink> TicketLinkConfigs { get; }
 
-
-	public WorkLogParser(WorkWeek workWeek)
-	{
-		WorkWeek = workWeek;
-	}
-
-	public WorkLogParser(DateTime anyDayOfIDOWeek, List<TargetWorkTime> targetWorkTime)
+	public WorkLogParser(DateTime anyDayOfIDOWeek, List<TargetWorkTime> targetWorkTime, List<TicketLink> ticketLinkConfigs)
 	{
 		var now = anyDayOfIDOWeek;
 		int calendarWeekInt = ISOWeek.GetWeekOfYear(now);
 		var isoWeekBegin = ISOWeek.ToDateTime(now.Year, calendarWeekInt, DayOfWeek.Monday);
 		WorkWeek = FromWeek(isoWeekBegin, targetWorkTime, calendarWeekInt);
+        TicketLinkConfigs = ticketLinkConfigs;
 	}
 
 	public List<WorkLog> ParseWorkLogInput(string? value, List<WorkLog>? defaultValue = null)
@@ -41,7 +43,7 @@ public class WorkLogParser
 			return defaultValue ?? new List<WorkLog>();
 		}
 		var lines = value.Split(Environment.NewLine);
-		var workLogs = lines.Select(x => ParseWorkLog(WorkWeek, x)).Where(x => x != null).ToList();
+		var workLogs = lines.Select(x => ParseWorkLog(WorkWeek, x, TicketLinkConfigs)).Where(x => x != null).ToList();
 		return workLogs!;
 	}
 	
@@ -54,7 +56,7 @@ public class WorkLogParser
 		}).Where(x => x != null).ToList();
 		return new(list!, calendarWeek);
 	}
-	private static WorkLog? ParseWorkLog(WorkWeek week, string worklog)
+	private static WorkLog? ParseWorkLog(WorkWeek week, string worklog, List<TicketLink> ticketLinkConfigs)
 	{
 		var tokens = worklog.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
 		var first = tokens.FirstOrDefault();
@@ -67,9 +69,9 @@ public class WorkLogParser
 		tokens.RemoveAt(0);
 		tokens = string.Join(' ', tokens).Split(',', StringSplitOptions.RemoveEmptyEntries).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
 
-		return new WorkLog(weekDay.Day, tokens.Select(x => ParseWorkTime(x, weekDay.Day)).ToArray());
+		return new WorkLog(weekDay.Day, tokens.Select(x => ParseWorkTime(x, weekDay.Day, ticketLinkConfigs)).ToArray());
 	}
-	private static WorkTime ParseWorkTime(string input, DateTime day)
+	private static WorkTime ParseWorkTime(string input, DateTime day, List<TicketLink> ticketLinkConfigs)
 	{
 		var tokens = input.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
 		var workTime = TimeSpan.Zero;
@@ -82,7 +84,9 @@ public class WorkLogParser
 		});
 		tokens.RemoveAll(x => removeTokens.Contains(x));
 
-		return new WorkTime(day, workTime, null, string.Join(' ', tokens));
+		var ticketLinks = tokens.SelectMany(x => ParseTicketLinks(x, ticketLinkConfigs)).ToList();
+
+		return new WorkTime(day, workTime, ticketLinks, string.Join(' ', tokens));
 	}
 	private static DayOfWeek? ParseDayOfWeek(string input)
 	{
@@ -132,5 +136,26 @@ public class WorkLogParser
 		}
 
 		return timespan;
+	}
+
+	public static IEnumerable<TicketLink> ParseTicketLinks(string input, List<TicketLink> ticketLinks)
+	{
+		foreach (var ticketLinkConfig in ticketLinks)
+		{
+			var matches = Regex.Matches(input, ticketLinkConfig.RegexGroupCapture);
+			foreach (Match match in matches)
+			{
+				string? value = null;
+				
+				try
+				{
+					value = match.Groups[1].Value;
+				}
+				catch { }
+
+				if (!string.IsNullOrEmpty(value))
+					yield return ticketLinkConfig with { Value = value };
+			}
+		}
 	}
 }

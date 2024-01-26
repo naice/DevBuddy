@@ -1,7 +1,8 @@
 ﻿@using DevBuddy.Controls.Overlay
 @using DevBuddy.Navigation
+@using DevBuddy.Services
 
-@inject IJSRuntime JSRuntime
+@inject MyJSInterop JSInterop
 
 @inherits LayoutComponentBase
 
@@ -23,7 +24,7 @@
             @Body
         </RadzenBody>
         <RadzenFooter class="layout-footer">
-            <div style="display: flex; justify-content: end; align-items: center; cursor: pointer;" @onclick="@(async () => await JSRuntime.InvokeAsync<object>("open", "https://github.com/naice", "_blank"))">
+            <div style="display: flex; justify-content: end; align-items: center; cursor: pointer;" @onclick="@(() => JSInterop.OpenURL("https://github.com/naice", "_blank"))">
                 <span>Made with</span> 
                 <RadzenIcon Icon="favorite" IconColor="red" /> 
                 <span>by Emmuss</span>

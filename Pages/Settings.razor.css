@@ -1,9 +1,11 @@
+.card + .card {
+    margin-top: 16px;
+}
+
 .config-row {
     display:flex;
     justify-content: space-between;
-    align-items: center;
-    margin-left: 16px;
-    margin-right: 16px;
+    align-items: end;
 }
 .config-row + .config-row {
     margin-top: 16px;
@@ -11,5 +13,5 @@
 .button-panel {
     display:flex;
     justify-content: space-between;
-    margin: 16px;
+    margin: 16px 0;
 }

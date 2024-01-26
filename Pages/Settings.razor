@@ -12,36 +12,112 @@
 @implements IDisposable
 
 @inject IClipboardService Clipboard
-@inject ILogger<Index> Log
 @inject SimpleStorage<Configuration> Configuration
 @inject IOverlayService OverlayService
 @inject NotificationService NotificationService
+@inject TooltipService tooltipService
+@inject ILogger<Settings> Log
+@inject MyJSInterop JSInterop
 
 @if (_configuration != null)
 {
+    <RadzenStack>
+        <RadzenCard class="card">
+            <RadzenText TextStyle="TextStyle.Subtitle1"> Work Days </RadzenText>
+            You can define your workdays here so it fits perfectly for your working week.
+            <div class="button-panel">
+                <RadzenButton Icon="add" ButtonStyle="ButtonStyle.Secondary" Click="@(AddTargetWorkTime)" Disabled=@(_configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.Count >= 7) />
+            </div>
+            @foreach(var context in _configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek)
+            {
+                <div class="config-row">
+                    <RadzenFormField Text="Day of Week">
+                        <RadzenDropDown TValue="object" 
+                            @bind-Value:get="(object)context.DayOfWeek" 
+                            @bind-Value:set="@((x) => context.DayOfWeek = ((ValueTuple<string,DayOfWeek>)x).Item2)" 
+                            Data="@(Enum.GetValues<DayOfWeek>().Select(x => (x.GetDisplayDescription(), (DayOfWeek)x)))" 
+                            TextProperty="Item1"
+                            ValueProperty="Item2" 
+                            Name="DayOfWeekDropDown" />
+                    </RadzenFormField>
+                    <RadzenFormField Text="Duration">
+                        <RadzenDatePicker TValue="DateTime" ShowTime="true" TimeOnly="true" DateFormat="HH:mm" Name="DatePickerTimeOnly" 
+                            @bind-Value:get="@(DateTime.MinValue.Add(context.Time))" 
+                            @bind-Value:set="@((x) => {context.Time = x.TimeOfDay; Console.WriteLine("X: " + x.TimeOfDay.ToString());})" />
+                    </RadzenFormField>
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(() => RemoveTargetWorkTime(context))" style="margin-bottom:1px"/>
+                </div>
+            }
+        </RadzenCard>
+        <RadzenCard class="card">
+            <RadzenText TextStyle="TextStyle.Subtitle1"> Ticket Links </RadzenText>
+            A bit more advanced? No problem. Define Regular expressions here that fits to your 
+            ticket styles and provide a Url with the %TICKET% token. Please create only one 
+            capture group. Press the <RadzenIcon Icon="play_circle_outline" IconStyle="IconStyle.Info"/> button
+            or press the <RadzenIcon Icon="launch" IconStyle="IconStyle.Info"/> button to open <a href="https://regex101.com">regex101.com</a> 
+            with your regex.
+            <div class="button-panel">
+                <RadzenButton Icon="add" ButtonStyle="ButtonStyle.Secondary" Click="@(AddTicketLink)"/>
+            </div>
+            @foreach(var context in _configuration.WorkLogConfiguration.TicketLinks)
+            {   
+                <div class="config-row">
+                    <div>
+                        <RadzenFormField Text="Regular Expression">
+                            <ChildContent>
+                                <RadzenTextBox @bind-Value=@(context.RegexGroupCapture) />
+                            </ChildContent>
+                            <End>
+                                <RadzenButton 
+                                    Icon="launch" 
+                                    ButtonStyle="ButtonStyle.Info"
+                                    Variant="Variant.Text" Size="ButtonSize.Small"
+                                    Click="@(() => OpenRegex101(context))" />
+                                <RadzenButton 
+                                    Icon="play_circle_outline" 
+                                    ButtonStyle="ButtonStyle.Info"
+                                    Variant="Variant.Text" Size="ButtonSize.Small"
+                                    Click="@(() => GenerateSampleLinks(context))" />
+                            </End>
+                        </RadzenFormField>                
+                    </div>
+                    
+                        <RadzenFormField Text="Url">
+                            <RadzenTextBox @bind-Value=@(context.UrlTemplate) />
+                        </RadzenFormField>   
+                    
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(() => _configuration.WorkLogConfiguration.TicketLinks.Remove(context))"  style="margin-bottom:1px"/>
+                </div>
+            }
+            <RadzenText TextStyle="TextStyle.Subtitle2" style="margin-top: 16px;"> Sample Text </RadzenText>
+            <RadzenTextArea @bind-Value=@(_sampleWorkLogString) Rows="10"  style="font-family: 'Lucida Console', 'Courier New', Courier, monospace !important; font-size: 10px !important; width: 100%" spellcheck="false" />
+            <RadzenText TextStyle="TextStyle.Subtitle2" style="margin-top: 16px;"> Test Results </RadzenText>
+            @if (_sampleTicketLinks.Count <= 0)
+            {
+                <span>
+                    Press the <RadzenIcon Icon="play_circle_outline" IconStyle="IconStyle.Info"/> 
+                    button on any Ticket Link Regular Expression to generate test results.
+                </span>
+            }
+            else
+            {
+                @foreach(var ticketLink in _sampleTicketLinks)
+                {
+                    var url = ticketLink.UrlTemplate.Replace("%TICKET%", ticketLink.Value);
+                    <br/><span>@ticketLink.Value</span> <a href="@(url)" target="_blank">@url</a>
+                }
+            <div class="button-panel">
+                <div> </div>
+                <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(() => _sampleTicketLinks.Clear())" style="margin-bottom:1px"/>
+            </div>
+            }
+        </RadzenCard>
+    </RadzenStack>
+
+
     <div class="button-panel">
-        <RadzenButton Icon="add" ButtonStyle="ButtonStyle.Secondary" Click="@(AddTargetWorkTime)" Disabled=@(_configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.Count >= 7) />
-    </div>
-    @foreach(var context in _configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek)
-    {
-        <div class="config-row">
-            <RadzenDropDown TValue="object" 
-                @bind-Value:get="(object)context.DayOfWeek" 
-                @bind-Value:set="@((x) => context.DayOfWeek = ((ValueTuple<string,DayOfWeek>)x).Item2)" 
-                Data="@(Enum.GetValues<DayOfWeek>().Select(x => (x.GetDisplayDescription(), (DayOfWeek)x)))" 
-                TextProperty="Item1"
-                ValueProperty="Item2" 
-                Name="DayOfWeekDropDown">                
-            </RadzenDropDown>
-            <RadzenDatePicker TValue="DateTime" ShowTime="true" TimeOnly="true" DateFormat="HH:mm" Name="DatePickerTimeOnly" 
-                @bind-Value:get="@(DateTime.MinValue.Add(context.Time))" 
-                @bind-Value:set="@((x) => {context.Time = x.TimeOfDay; Console.WriteLine("X: " + x.TimeOfDay.ToString());})" />
-            <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(() => RemoveTargetWorkTime(context))" />
-        </div>
-    }
-    <div class="button-panel">
-        <RadzenButton Icon="undo" Text="Reset" ButtonStyle="ButtonStyle.Danger" Click="@(ResetTargetWorkTime)" />
-        <RadzenButton Icon="save" ButtonStyle="ButtonStyle.Success" Click="@(SaveTargetWorkTimeByDayOfWeek)" />
+        <RadzenButton Icon="undo" Text="Reset" ButtonStyle="ButtonStyle.Danger" Click="@(ResetConfiguration)" />
+        <RadzenButton Icon="save" ButtonStyle="ButtonStyle.Success" Click="@(SaveConfiguration)" />
     </div>
 }
 
@@ -50,9 +126,15 @@
 {
     Configuration? _configuration;
     List<IDisposable> _subscriptions = new List<IDisposable>();
-    List<IGrouping<DayOfWeek, TargetWorkTime>>? _errorDoubleDays;
+    private string _sampleWorkLogString = @"mo Ticket-123 2h, Ticket-321 3h 15m, 
+di Ticket-321 4h 45m, Ticket-333 2h 15m
+mi Ticket-321 1h
+donnerstag Ticket-333 8h, Ticket-3211 1h
+fr Ticket-999 8h";
+    private List<TicketLink> _sampleTicketLinks = new List<TicketLink>();
 
-    private DateTime? x;
+    private ValueTask OpenRegex101(TicketLink ticketLink) 
+        => JSInterop.OpenURL("https://regex101.com/?regex="+ Uri.EscapeDataString(ticketLink.RegexGroupCapture) +"&flags=gm&delimiter=&flavor=&testString="+ Uri.EscapeDataString(_sampleWorkLogString) +"&subst=", "_blank");        
     protected override async Task OnInitializedAsync()
     {
         _subscriptions.Add(
@@ -71,6 +153,11 @@
         await base.OnInitializedAsync();
     }
 
+    private void GenerateSampleLinks(TicketLink ticketLink)
+    {
+        _sampleTicketLinks = WorkLogParser.ParseTicketLinks(_sampleWorkLogString, new List<TicketLink>() { ticketLink }).ToList();
+    }
+
     private void AddTargetWorkTime()
     {
         if (_configuration == null || _configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.Count == 7) return;
@@ -79,11 +166,14 @@
         _configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.Add(new (missingDayOfWeek, TimeSpan.FromHours(8)));
         Configuration.Subject.OnNext(_configuration);
     }
-    private async Task ResetTargetWorkTime()
+
+
+    private void AddTicketLink()
     {
         if (_configuration == null) return;
-        await Configuration.SetAsync(Model.Configuration.DEFAULT_CONFIG.Clone());
+        _configuration.WorkLogConfiguration.TicketLinks.Add(new TicketLink("", ""));
     }
+
     private void RemoveTargetWorkTime(TargetWorkTime targetWorkTime)
     {
         if (_configuration == null) return;
@@ -91,13 +181,31 @@
         Configuration.Subject.OnNext(_configuration);
     }
 
-    private async Task SaveTargetWorkTimeByDayOfWeek()
+    private async Task ResetConfiguration()
+    {
+        if (_configuration == null) return;
+        await Configuration.SetAsync(Model.Configuration.DEFAULT_CONFIG.Clone());
+    }
+
+    private async Task SaveConfiguration()
     {
         if (_configuration == null) return;
         var errDoubleDays = _configuration.WorkLogConfiguration.TargetWorkTimeByDayOfWeek.GroupBy(x => x.DayOfWeek).Where(x => x.Count() > 1).ToList();
         if (errDoubleDays.Count > 0)
         {
             NotificationService.Notify(severity: NotificationSeverity.Error, summary: "Can't save configuration", detail: "Same week days: " + string.Join(", ", errDoubleDays.Select(x => x.Key.ToString())) );
+            return;
+        }
+
+        var errTicketLinks = _configuration.WorkLogConfiguration.TicketLinks.Where(x => {
+            if (string.IsNullOrEmpty(x.UrlTemplate) || string.IsNullOrEmpty(x.RegexGroupCapture))
+                return true;
+            
+            return false;
+        }).ToList();
+        if (errTicketLinks.Count > 0)
+        {
+            NotificationService.Notify(severity: NotificationSeverity.Error, summary: "Can't save configuration", detail: "There are invalid Ticket Links.");
             return;
         }
 

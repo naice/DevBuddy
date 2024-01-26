@@ -40,6 +40,10 @@
                 <span class="copy" @onclick="@(() => Clipboard.CopyToClipboard(workTimeGroup.Key ?? string.Empty))">
                     @workTimeGroup.Key
                 </span>
+                @foreach(var ticketLink in workTimeGroup.SelectMany(x => x.TicketLink).Distinct())
+                {
+                    <br/><a href="@(ticketLink.UrlTemplate.Replace("%TICKET%", ticketLink.Value))" target="_blank">@ticketLink.Value</a>
+                }
                 
             </td>
             @foreach(var workDay in _workLogParser.WorkWeek.Days)
@@ -117,7 +121,7 @@ fr Ticket-999 8h";
     protected override async Task OnInitializedAsync()
     {
         var config = await Configuration.GetAsync(Model.Configuration.DEFAULT_CONFIG.Clone());
-        _workLogParser = new WorkLogParser(DateTime.Now, config!.WorkLogConfiguration.TargetWorkTimeByDayOfWeek);
+        _workLogParser = new WorkLogParser(DateTime.Now, config!.WorkLogConfiguration.TargetWorkTimeByDayOfWeek, config!.WorkLogConfiguration.TicketLinks);
         string? workLogString = await WorkLogStorage.GetAsync();
         _textArea.Value = workLogString ?? string.Empty;
         if (string.IsNullOrEmpty(workLogString))
