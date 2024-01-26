@@ -36,10 +36,13 @@
     @foreach(var workTimeGroup in _workLogs.SelectMany(x => x.WorkTimes).GroupBy(x => x.Description))
     {
         <tr>
-            <td> 
-                <span class="copy" @onclick="@(() => Clipboard.CopyToClipboard(workTimeGroup.Key ?? string.Empty))">
-                    @workTimeGroup.Key
-                </span>
+            <td>
+                @if (IsGoodDescription(workTimeGroup.Key ?? "", workTimeGroup.SelectMany(x => x.TicketLink ?? new ()).Distinct().ToList()))
+                {
+                    <span class="copy" @onclick="@(() => Clipboard.CopyToClipboard(workTimeGroup.Key ?? string.Empty))">
+                        @workTimeGroup.Key
+                    </span>
+                }
                 @foreach(var ticketLink in workTimeGroup.SelectMany(x => x.TicketLink).Distinct())
                 {
                     <br/><a href="@(ticketLink.UrlTemplate.Replace("%TICKET%", ticketLink.Value))" target="_blank">@ticketLink.Value</a>
@@ -117,6 +120,17 @@ fr Ticket-999 8h";
                 result = _workLogParser.ParseWorkLogInput(_sampleWorkLogString);
             return result;
         });
+    }
+
+    private bool IsGoodDescription(string description, List<TicketLink> ticketLinks)
+    {
+        var x = description;
+        foreach (var ticketLink in ticketLinks)
+        {
+            x = x.Replace(ticketLink.Value ?? "", "");
+        }
+
+        return !string.IsNullOrWhiteSpace(x);
     }
     protected override async Task OnInitializedAsync()
     {
