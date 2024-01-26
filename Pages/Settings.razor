@@ -155,7 +155,16 @@ fr Ticket-999 8h";
 
     private void GenerateSampleLinks(TicketLink ticketLink)
     {
-        _sampleTicketLinks = WorkLogParser.ParseTicketLinks(_sampleWorkLogString, new List<TicketLink>() { ticketLink }).ToList();
+        try
+        {
+            _sampleTicketLinks = WorkLogParser.ParseTicketLinks(_sampleWorkLogString, new List<TicketLink>() { ticketLink }).ToList();
+            return;
+        }
+        catch (Exception ex) 
+        {            
+            NotificationService.Notify(severity: NotificationSeverity.Error, summary: "Regex error", detail: ex.Message);
+        }
+        _sampleTicketLinks = new List<TicketLink>();
     }
 
     private void AddTargetWorkTime()
