@@ -6,6 +6,7 @@
     display:flex;
     justify-content: space-between;
     align-items: end;
+    column-gap: 16px;
 }
 .config-row + .config-row {
     margin-top: 16px;

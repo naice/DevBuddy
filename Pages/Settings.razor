@@ -81,10 +81,9 @@
                             </End>
                         </RadzenFormField>                
                     </div>
-                    
-                        <RadzenFormField Text="Url">
-                            <RadzenTextBox @bind-Value=@(context.UrlTemplate) />
-                        </RadzenFormField>   
+                    <RadzenFormField Text="Url" style="flex: 1">
+                        <RadzenTextBox @bind-Value=@(context.UrlTemplate) />
+                    </RadzenFormField>
                     
                     <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(() => _configuration.WorkLogConfiguration.TicketLinks.Remove(context))"  style="margin-bottom:1px"/>
                 </div>
