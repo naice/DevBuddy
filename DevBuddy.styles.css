@@ -1,0 +1,62 @@
+/* /Controls/Overlay/OverlayHost.razor.rz.scp.css */
+/* /MainLayout.razor.rz.scp.css */
+.layout-header[b-2qhx2co2w5] {
+    height: var(--layout-header-height, 50px);
+}
+.layout-footer[b-2qhx2co2w5] {
+    height: var(--layout-footer-height, 50px);
+}
+/* /Pages/Index.razor.rz.scp.css */
+table[b-l6yrs9wiui] {
+    border-collapse: collapse;
+    margin: 1em;
+  }
+th[b-l6yrs9wiui] {
+  border-bottom: 1px solid var(--rz-base-500);
+  color: var(--rz-info-darker);
+  font-size: 0.85em;
+  font-weight: 600;
+  padding: 0.5em 1em;
+  text-align: right;
+  text-wrap: nowrap;
+}
+td[b-l6yrs9wiui] {
+  color: var(--rz-text-color);
+  padding: 0.65em 1em;
+  text-wrap: nowrap;
+  text-align: right;
+}
+.today[b-l6yrs9wiui] {
+  background: var(--rz-info-lighter);
+}
+.copy[b-l6yrs9wiui] {
+  cursor: pointer
+}
+.underDue[b-l6yrs9wiui] {
+  color: var(--rz-danger);
+}
+.overDue[b-l6yrs9wiui] {
+  color: var(--rz-warning);  
+}
+.onDue[b-l6yrs9wiui] {
+  color: var(--rz-success);  
+}
+/* /Pages/Settings.razor.rz.scp.css */
+.card + .card[b-i22aydh7ik] {
+    margin-top: 16px;
+}
+
+.config-row[b-i22aydh7ik] {
+    display:flex;
+    justify-content: space-between;
+    align-items: end;
+    column-gap: 16px;
+}
+.config-row + .config-row[b-i22aydh7ik] {
+    margin-top: 16px;
+}
+.button-panel[b-i22aydh7ik] {
+    display:flex;
+    justify-content: space-between;
+    margin: 16px 0;
+}
