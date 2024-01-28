@@ -16,7 +16,7 @@
 @inject SimpleStorage<string, WorkLogTextStorage> WorkLogStorage
 @inject IOverlayService OverlayService
 
-<RadzenTextArea @ref="_textArea" class="w-100" Rows="5" style="font-family: 'Lucida Console', 'Courier New', Courier, monospace !important; font-size: 10px !important;" spellcheck="false"
+<RadzenTextArea @ref="_textArea" class="w-100" Rows="10" style="font-family: 'Lucida Console', 'Courier New', Courier, monospace !important; font-size: 12px !important;" spellcheck="false"
     Placeholder="@_sampleWorkLogString" 
     @oninput="(x) => OnTextInput(x?.Value?.ToString())"/>
 
